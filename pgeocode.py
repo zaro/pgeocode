@@ -13,7 +13,10 @@ __version__ = '0.1.1'
 STORAGE_DIR = os.path.join(os.path.expanduser('~'),
                            'pgeocode_data')
 
-DOWNLOAD_URL = "http://download.geonames.org/export/zip/{country}.zip"
+DOWNLOAD_URLs = [
+    "http://download.geonames.org/export/zip/{country}.zip",
+    "https://s3.eu-central-1.amazonaws.com/gid-cached-files/postal-codes/{country}.zip"
+]
 
 DATA_FIELDS = ['country code', 'postal_code', 'place_name',
                'state_name', 'state_code', 'county_name', 'county_code',
@@ -73,9 +76,15 @@ class Nominatim(object):
             data = pd.read_csv(data_path,
                                dtype={'postal_code': str})
         else:
-            url = DOWNLOAD_URL.format(country=country)
-            compression = _infer_compression(url, "zip")
-            reader, encoding, compression = get_filepath_or_buffer(url)[:3]
+            import urllib
+            for download_url in DOWNLOAD_URLs:
+                url = download_url.format(country=country)
+                compression = _infer_compression(url, "zip")
+                try:
+                    reader, encoding, compression = get_filepath_or_buffer(url)[:3]
+                except urllib.error.HTTPError:
+                    continue
+                break
             with ZipFile(reader) as fh_zip:
                 with fh_zip.open(country.upper() + '.txt') as fh:
                     data = pd.read_csv(fh,
